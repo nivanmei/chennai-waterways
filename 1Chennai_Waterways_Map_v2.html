@@ -1,0 +1,1075 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Chennai Waterways — Crisis Intelligence Map · 2026</title>
+
+<!-- ① FONTS — loaded before anything else -->
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Playfair+Display:wght@700&display=swap" rel="stylesheet"/>
+
+<!-- ② LEAFLET CSS — must come before Leaflet JS -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+
+<style>
+/* ══════════════════════════════════════════
+   RESET & TOKENS
+══════════════════════════════════════════ */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0b0d14; --sur:#12141f; --sur2:#1a1d2e;
+  --bdr:#252840; --bdr2:#2e3250;
+  --tx:#e2e4f0;  --mu:#7880a0; --fa:#3a3f60;
+  --cooum:#ef4444; --adyar:#f97316;
+  --kosa:#22c55e;  --buck:#a855f7;
+  --acc:#60a5fa;   --gold:#f59e0b;
+  --HH:56px; --FH:32px; --LW:290px; --RW:310px;
+  --font:'IBM Plex Sans',sans-serif;
+  --mono:'IBM Plex Mono',monospace;
+}
+html,body{height:100%;font-family:var(--font);
+  background:var(--bg);color:var(--tx);overflow:hidden}
+
+/* ══════════════════════════════════════════
+   HEADER
+══════════════════════════════════════════ */
+#hdr{
+  position:fixed;top:0;left:0;right:0;height:var(--HH);z-index:3000;
+  background:linear-gradient(90deg,#0c0e16,#14172a,#0c0e16);
+  border-bottom:1px solid var(--bdr);
+  display:flex;align-items:center;gap:16px;padding:0 16px;
+}
+#brand h1{font-family:'Playfair Display',serif;font-size:15px;
+  font-weight:700;color:var(--tx);letter-spacing:-0.2px;line-height:1.1}
+#brand p{font-size:8px;color:var(--mu);text-transform:uppercase;
+  letter-spacing:1.2px;margin-top:1px}
+.hdiv{width:1px;height:30px;background:var(--bdr);flex-shrink:0}
+#kpis{display:flex;gap:5px;flex:1;overflow:hidden}
+.kp{display:flex;flex-direction:column;align-items:center;
+  padding:5px 10px;border-radius:6px;border:1px solid var(--bdr);
+  background:rgba(255,255,255,0.02);flex:1;min-width:0}
+.kp .v{font-size:12px;font-weight:700;font-family:var(--mono);line-height:1}
+.kp .l{font-size:7.5px;color:var(--mu);text-transform:uppercase;
+  letter-spacing:0.7px;margin-top:1px;white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis;width:100%;text-align:center}
+.kp.r .v{color:#f87171} .kp.o .v{color:#fb923c}
+.kp.p .v{color:#c084fc} .kp.b .v{color:var(--acc)}
+.kp.g .v{color:#4ade80}
+#hbtns{display:flex;gap:6px;flex-shrink:0}
+.hbtn{height:26px;padding:0 11px;border-radius:5px;font-size:9px;
+  font-weight:600;text-transform:uppercase;letter-spacing:0.6px;
+  cursor:pointer;border:1px solid;font-family:var(--font);transition:.15s}
+#bprint{background:var(--acc);border-color:var(--acc);color:#0b0d14}
+#bprint:hover{background:#93c5fd}
+#breset{background:transparent;border-color:var(--bdr2);color:var(--mu)}
+#breset:hover{border-color:var(--acc);color:var(--acc)}
+
+/* ══════════════════════════════════════════
+   MAIN LAYOUT
+══════════════════════════════════════════ */
+#layout{
+  position:fixed;top:var(--HH);left:0;right:0;
+  bottom:var(--FH);display:flex;
+}
+#left{
+  width:var(--LW);flex-shrink:0;background:var(--sur);
+  border-right:1px solid var(--bdr);overflow-y:auto;
+}
+#left::-webkit-scrollbar{width:3px}
+#left::-webkit-scrollbar-thumb{background:var(--fa);border-radius:2px}
+#mapbox{flex:1;position:relative;z-index:1}
+#right{
+  width:var(--RW);flex-shrink:0;background:var(--sur);
+  border-left:1px solid var(--bdr);overflow-y:auto;
+}
+#right::-webkit-scrollbar{width:3px}
+#right::-webkit-scrollbar-thumb{background:var(--fa);border-radius:2px}
+
+/* ══════════════════════════════════════════
+   FOOTER
+══════════════════════════════════════════ */
+#ftr{
+  position:fixed;bottom:0;left:0;right:0;height:var(--FH);z-index:3000;
+  background:var(--sur);border-top:1px solid var(--bdr);
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 14px;
+}
+#coords{font-family:var(--mono);font-size:9.5px;color:var(--mu)}
+#fcen{font-size:8px;color:var(--fa);text-transform:uppercase;letter-spacing:.9px}
+#fzoom{font-family:var(--mono);font-size:9.5px;color:var(--mu)}
+
+/* ══════════════════════════════════════════
+   PANEL COMPONENTS
+══════════════════════════════════════════ */
+.ps{padding:13px 15px;border-bottom:1px solid var(--bdr)}
+.ps:last-child{border-bottom:none}
+.plbl{font-size:7.5px;font-weight:600;text-transform:uppercase;
+  letter-spacing:1.3px;color:var(--mu);margin-bottom:9px;
+  display:flex;align-items:center;gap:6px}
+.plbl::after{content:'';flex:1;height:1px;background:var(--bdr)}
+
+/* River rows */
+.rr{display:flex;align-items:center;gap:9px;padding:7px 9px;
+  border-radius:7px;margin-bottom:3px;cursor:pointer;
+  border:1px solid transparent;transition:.15s}
+.rr:hover{background:rgba(255,255,255,0.03);border-color:var(--bdr)}
+.rsw{width:28px;height:3px;border-radius:2px;flex-shrink:0}
+.rn{font-size:10.5px;font-weight:600}
+.rm{font-size:8.5px;color:var(--mu);margin-top:1px}
+.rtg{font-size:7.5px;font-weight:700;text-transform:uppercase;
+  letter-spacing:.4px;padding:2px 5px;border-radius:3px;flex-shrink:0;margin-left:auto}
+.td{background:rgba(239,68,68,.15);color:#f87171;border:1px solid rgba(239,68,68,.3)}
+.tc{background:rgba(249,115,22,.15);color:#fb923c;border:1px solid rgba(249,115,22,.3)}
+.tdc{background:rgba(34,197,94,.12);color:#4ade80;border:1px solid rgba(34,197,94,.25)}
+.tk{background:rgba(168,85,247,.15);color:#c084fc;border:1px solid rgba(168,85,247,.3)}
+
+/* Stat rows */
+.sr{display:flex;align-items:center;justify-content:space-between;
+  padding:5px 0;border-bottom:1px solid rgba(255,255,255,.04)}
+.sr:last-child{border:none}
+.sk{font-size:9.5px;color:var(--mu)}
+.sv{font-size:9.5px;font-weight:600;font-family:var(--mono)}
+.sv.r{color:#f87171} .sv.o{color:#fb923c} .sv.g{color:#4ade80}
+.sv.b{color:var(--acc)} .sv.p{color:#c084fc}
+
+/* BOD bar */
+.brow{margin-bottom:7px}
+.blr{display:flex;justify-content:space-between;margin-bottom:2px}
+.bn{font-size:8.5px;color:var(--tx)}
+.bv{font-size:8.5px;font-family:var(--mono);font-weight:600}
+.bt{height:5px;background:var(--bdr);border-radius:3px;overflow:hidden}
+.bf{height:100%;border-radius:3px}
+
+/* Chokepoints */
+.cr{display:flex;gap:9px;padding:7px;border-radius:7px;margin-bottom:5px;
+  background:rgba(239,68,68,.05);border:1px solid rgba(239,68,68,.15)}
+.ci{font-size:13px;flex-shrink:0;margin-top:1px}
+.cn{font-size:9.5px;font-weight:600}
+.cd{font-size:8.5px;color:var(--mu);margin-top:2px;line-height:1.5}
+
+/* Phase items */
+.phi{display:flex;gap:9px;margin-bottom:9px}
+.phd{width:7px;height:7px;border-radius:50%;flex-shrink:0;margin-top:3px}
+.pht{font-size:9.5px;font-weight:600}
+.phx{font-size:8.5px;color:var(--mu);margin-top:2px;line-height:1.5}
+
+/* Gov timeline */
+.gr{display:flex;gap:7px;margin-bottom:9px}
+.gy{font-size:8.5px;font-weight:700;color:var(--acc);font-family:var(--mono);min-width:30px}
+.gt{font-size:8.5px;color:var(--mu);line-height:1.5}
+.gt b{color:var(--tx)}
+
+/* ROI box */
+.roi{background:rgba(34,197,94,.06);border:1px solid rgba(34,197,94,.2);
+  border-radius:8px;padding:11px}
+.roi .rh{font-size:20px;font-weight:700;font-family:var(--mono);color:#4ade80}
+.roi .rs{font-size:8.5px;color:var(--mu);margin-top:3px;line-height:1.5}
+
+/* Help tooltip */
+#help{
+  position:absolute;bottom:44px;right:12px;z-index:2000;
+  background:rgba(18,20,31,.97);border:1px solid var(--bdr2);
+  border-radius:10px;padding:14px 16px;max-width:240px;
+  font-size:9.5px;color:var(--mu);line-height:1.7;
+  box-shadow:0 8px 32px rgba(0,0,0,.6);display:none
+}
+#help b{color:var(--tx);display:block;margin-bottom:6px;font-size:11px}
+#help .hrow{display:flex;gap:8px;margin-bottom:4px}
+#help .hk{color:var(--acc);font-weight:600;min-width:70px;font-family:var(--mono);font-size:8.5px}
+#helpbtn{
+  position:absolute;bottom:44px;right:12px;z-index:2001;
+  width:28px;height:28px;border-radius:50%;background:var(--sur2);
+  border:1px solid var(--bdr2);color:var(--acc);font-size:13px;
+  cursor:pointer;display:flex;align-items:center;justify-content:center;
+  font-family:var(--mono);font-weight:700;transition:.15s
+}
+#helpbtn:hover{background:var(--acc);color:#0b0d14}
+
+/* ══════════════════════════════════════════
+   LEAFLET OVERRIDES
+══════════════════════════════════════════ */
+.leaflet-container{background:#0d1018!important;cursor:crosshair!important}
+.leaflet-tile-pane .leaflet-tile{
+  filter:brightness(.26) contrast(1.2) saturate(.5) hue-rotate(205deg)!important}
+.leaflet-control-attribution{
+  background:rgba(11,13,20,.8)!important;color:#3a3f60!important;
+  font-size:7.5px!important;border-radius:4px 0 0 0!important}
+.leaflet-control-attribution a{color:#4a5080!important}
+.leaflet-control-zoom a{
+  background:var(--sur2)!important;color:var(--tx)!important;
+  border-color:var(--bdr)!important;font-size:14px!important}
+.leaflet-control-zoom a:hover{background:var(--bdr2)!important}
+
+/* POPUP */
+.leaflet-popup-content-wrapper{
+  background:#1a1d2e!important;border:1px solid #2e3250!important;
+  border-radius:10px!important;box-shadow:0 12px 40px rgba(0,0,0,.75)!important;
+  color:var(--tx)!important;font-family:var(--font)!important;
+  padding:0!important;overflow:hidden!important;min-width:260px!important}
+.leaflet-popup-tip{background:#1a1d2e!important}
+.leaflet-popup-close-button{
+  color:var(--mu)!important;font-size:18px!important;
+  top:8px!important;right:10px!important;z-index:10!important;
+  width:20px!important;height:20px!important;line-height:20px!important}
+.leaflet-popup-close-button:hover{color:var(--tx)!important}
+.leaflet-popup-content{margin:0!important;padding:0!important;
+  min-width:240px!important;max-width:300px!important}
+
+/* Popup inner HTML */
+.pu{padding:14px 16px 14px 14px}
+.pu-hd{display:flex;align-items:flex-start;gap:9px;margin-bottom:10px;
+  padding-bottom:9px;border-bottom:1px solid var(--bdr)}
+.pu-ic{font-size:18px;flex-shrink:0}
+.pu-ti{font-size:12px;font-weight:700;line-height:1.3}
+.pu-su{font-size:8.5px;color:var(--mu);margin-top:2px}
+.pu-bd{display:flex;flex-direction:column;gap:4px}
+.pu-row{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}
+.pu-k{font-size:8.5px;color:var(--mu);flex-shrink:0}
+.pu-v{font-size:8.5px;font-weight:600;text-align:right;font-family:var(--mono);line-height:1.4}
+.pu-v.r{color:#f87171} .pu-v.o{color:#fb923c}
+.pu-v.g{color:#4ade80} .pu-v.b{color:var(--acc)} .pu-v.p{color:#c084fc}
+.pu-bg{display:inline-block;margin-top:9px;padding:3px 8px;border-radius:4px;
+  font-size:7.5px;font-weight:700;text-transform:uppercase;letter-spacing:.6px}
+.pu-bg.r{background:rgba(239,68,68,.2);color:#f87171;border:1px solid rgba(239,68,68,.3)}
+.pu-bg.o{background:rgba(249,115,22,.2);color:#fb923c;border:1px solid rgba(249,115,22,.3)}
+.pu-bg.p{background:rgba(168,85,247,.2);color:#c084fc;border:1px solid rgba(168,85,247,.3)}
+.pu-bg.b{background:rgba(96,165,250,.2);color:var(--acc);border:1px solid rgba(96,165,250,.3)}
+.pu-bg.g{background:rgba(34,197,94,.15);color:#4ade80;border:1px solid rgba(34,197,94,.25)}
+
+/* Map legend */
+.mleg{background:rgba(18,20,31,.95);border:1px solid var(--bdr);
+  border-radius:8px;padding:10px 12px;font-family:var(--font)}
+.mleg h4{font-size:7.5px;text-transform:uppercase;letter-spacing:1.2px;
+  color:var(--mu);margin-bottom:8px;font-weight:600}
+.lr{display:flex;align-items:center;gap:7px;margin-bottom:5px}
+.ll{width:22px;height:3px;border-radius:2px;flex-shrink:0}
+.ll.da{background:repeating-linear-gradient(90deg,var(--buck) 0 5px,transparent 5px 8px)}
+.lt{font-size:8.5px;color:#9099c0}
+.ldiv{height:1px;background:var(--bdr);margin:7px 0}
+
+/* Pulse */
+@keyframes pr{0%{transform:scale(1);opacity:.8}100%{transform:scale(3);opacity:0}}
+.pd{width:12px;height:12px;border-radius:50%;position:relative;
+  display:flex;align-items:center;justify-content:center}
+.pd::before{content:'';position:absolute;inset:0;border-radius:50%;
+  animation:pr 2s ease-out infinite}
+.pd.red{background:#ef4444;border:2px solid #fca5a5}
+.pd.red::before{background:rgba(239,68,68,.4)}
+.pd.ora{background:#f97316;border:2px solid #fdba74}
+.pd.ora::before{background:rgba(249,115,22,.4)}
+.pd.pur{background:#a855f7;border:2px solid #d8b4fe}
+.pd.pur::before{background:rgba(168,85,247,.4)}
+.pd.blu{background:#3b82f6;border:2px solid #93c5fd}
+.pd.blu::before{background:rgba(59,130,246,.35)}
+
+/* Print */
+@media print{
+  #hdr,#ftr,#left,#right,#helpbtn,#help{display:none!important}
+  #layout{position:relative!important;top:0!important;bottom:0!important;display:block!important}
+  #mapbox{width:100vw!important;height:90vh!important;position:relative!important}
+  .leaflet-tile-pane .leaflet-tile{filter:none!important}
+}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div id="hdr">
+  <div id="brand">
+    <h1>Chennai Waterways — Crisis Intelligence Map</h1>
+    <p>Government Submission · Hydrological & Pollution Analysis · May 2026</p>
+  </div>
+  <div class="hdiv"></div>
+  <div id="kpis">
+    <div class="kp r"><span class="v">345 mg/L</span><span class="l">Cooum BOD</span></div>
+    <div class="kp r"><span class="v">~0 mg/L</span><span class="l">Dissolved O₂</span></div>
+    <div class="kp o"><span class="v">764+</span><span class="l">Sewage Outfalls</span></div>
+    <div class="kp o"><span class="v">1,162 MLD</span><span class="l">Water Deficit</span></div>
+    <div class="kp p"><span class="v">127.5%</span><span class="l">GW Extraction</span></div>
+    <div class="kp r"><span class="v">400+</span><span class="l">Deaths 2015</span></div>
+    <div class="kp b"><span class="v">9M</span><span class="l">Pop. at Risk</span></div>
+    <div class="kp g"><span class="v">74%</span><span class="l">Lakes Lost</span></div>
+  </div>
+  <div class="hdiv"></div>
+  <div id="hbtns">
+    <button class="hbtn" id="bprint" onclick="window.print()">⬇ Export PDF</button>
+    <button class="hbtn" id="breset" onclick="resetMap()">⟲ Reset</button>
+  </div>
+<div style="display:flex;gap:5px;flex-shrink:0;align-items:center">
+    <div style="padding:3px 8px;border-radius:4px;font-size:7.5px;font-weight:700;
+      background:rgba(96,165,250,0.12);border:1px solid rgba(96,165,250,0.3);
+      color:var(--acc);letter-spacing:0.5px;text-transform:uppercase;white-space:nowrap">
+      ⚡ Claude Pro
+    </div>
+    <div style="padding:3px 8px;border-radius:4px;font-size:7.5px;font-weight:700;
+      background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.25);
+      color:#4ade80;letter-spacing:0.5px;text-transform:uppercase;white-space:nowrap">
+      🌐 Open Source
+    </div>
+  </div>
+</div>
+
+<!-- LAYOUT -->
+<div id="layout">
+
+  <!-- LEFT PANEL -->
+  <div id="left">
+
+    <div class="ps">
+      <div class="plbl">Waterway Network — Click on map to explore</div>
+      <div class="rr" onclick="flyTo(13.08,80.14,12)">
+        <div class="rsw" style="background:#ef4444"></div>
+        <div><div class="rn">Cooum River</div>
+          <div class="rm">72 km · 79.940°E → 80.298°E</div></div>
+        <span class="rtg td">DEAD</span>
+      </div>
+      <div class="rr" onclick="flyTo(12.967,80.155,12)">
+        <div class="rsw" style="background:#f97316"></div>
+        <div><div class="rn">Adyar River</div>
+          <div class="rm">42 km · 80.015°E → 80.299°E</div></div>
+        <span class="rtg tc">CRITICAL</span>
+      </div>
+      <div class="rr" onclick="flyTo(13.22,80.16,11)">
+        <div class="rsw" style="background:#22c55e"></div>
+        <div><div class="rn">Kosasthalaiyar River</div>
+          <div class="rm">136 km · 79.980°E → 80.304°E</div></div>
+        <span class="rtg tdc">DECLINING</span>
+      </div>
+      <div class="rr" onclick="flyTo(13.10,80.285,11)">
+        <div class="rsw" style="background:repeating-linear-gradient(90deg,#a855f7 0 7px,transparent 7px 11px)"></div>
+        <div><div class="rn">Buckingham Canal</div>
+          <div class="rm">796 km total · Runs North → South</div></div>
+        <span class="rtg tk">CHOKED</span>
+      </div>
+    </div>
+
+    <!-- BOD Chart -->
+    <div class="ps">
+      <div class="plbl">Pollution Severity — BOD mg/L</div>
+      <div class="brow">
+        <div class="blr"><span class="bn">Cooum River</span>
+          <span class="bv" style="color:#f87171">345 mg/L</span></div>
+        <div class="bt"><div class="bf" style="width:100%;background:linear-gradient(90deg,#ef4444,#7f1d1d)"></div></div>
+      </div>
+      <div class="brow">
+        <div class="blr"><span class="bn">Adyar River</span>
+          <span class="bv" style="color:#fb923c">40 mg/L</span></div>
+        <div class="bt"><div class="bf" style="width:11.6%;background:linear-gradient(90deg,#f97316,#9a3412)"></div></div>
+      </div>
+      <div class="brow">
+        <div class="blr"><span class="bn">Kosasthalaiyar</span>
+          <span class="bv" style="color:#86efac">~15 mg/L</span></div>
+        <div class="bt"><div class="bf" style="width:4.3%;background:#22c55e"></div></div>
+      </div>
+      <div class="brow">
+        <div class="blr"><span class="bn" style="color:var(--mu)">Safe Standard</span>
+          <span class="bv" style="color:var(--acc)">3 mg/L</span></div>
+        <div class="bt"><div class="bf" style="width:.9%;background:#3b82f6"></div></div>
+      </div>
+      <div style="font-size:8px;color:var(--mu);margin-top:5px">
+        Cooum is <span style="color:#f87171;font-weight:700">115×</span> over the safe standard
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="ps">
+      <div class="plbl">Water Quality & Supply Metrics</div>
+      <div class="sr"><span class="sk">DO — Cooum</span><span class="sv r">~0 mg/L (DEAD)</span></div>
+      <div class="sr"><span class="sk">DO — Adyar</span><span class="sv r">~0 mg/L (DEAD)</span></div>
+      <div class="sr"><span class="sk">Active sewage outfalls</span><span class="sv r">764+</span></div>
+      <div class="sr"><span class="sk">Cooum daily sewage gap</span><span class="sv o">21.67 MLD</span></div>
+      <div class="sr"><span class="sk">Water supply deficit</span><span class="sv o">1,162 MLD (52%)</span></div>
+      <div class="sr"><span class="sk">GW over-extraction</span><span class="sv p">127.5% of recharge</span></div>
+      <div class="sr"><span class="sk">Lakes lost since 1893</span><span class="sv r">74% of area</span></div>
+      <div class="sr"><span class="sk">Buffer zone residents</span><span class="sv o">200,000+</span></div>
+      <div class="sr"><span class="sk">Buckingham encroachments</span><span class="sv p">5,000+</span></div>
+      <div class="sr"><span class="sk">SWD network gap</span><span class="sv b">223 km pending</span></div>
+    </div>
+
+    <!-- Governance -->
+    <div class="ps">
+      <div class="plbl">Implementation Failure Timeline</div>
+      <div class="gr"><div class="gy">2003</div>
+        <div class="gt">Cooum cleanup announced. <b>₹100 Cr.</b> Minimal works.</div></div>
+      <div class="gr"><div class="gy">2009</div>
+        <div class="gt"><b>CRRT formed. ₹1,200 Cr, 10-yr plan.</b> Target: swimmable by 2019. Still most polluted in India (CPCB 2024).</div></div>
+      <div class="gr"><div class="gy">2015</div>
+        <div class="gt"><b>Catastrophic flood.</b> 348 mm/24h. 400+ deaths. ₹2,000+ Cr damage.</div></div>
+      <div class="gr"><div class="gy">2021</div>
+        <div class="gt"><b>1,008 km SWD master plan.</b> ₹2,800 Cr. Target: 2024.</div></div>
+      <div class="gr"><div class="gy">2022</div>
+        <div class="gt"><b>HC orders</b> Buckingham restoration in 6 months. <b>Unmet.</b></div></div>
+      <div class="gr"><div class="gy">2023</div>
+        <div class="gt"><b>Cyclone Michaung.</b> 600 mm/24h. 17 deaths. SWD: 78% actual vs 92% claimed.</div></div>
+      <div class="gr"><div class="gy">2024</div>
+        <div class="gt"><b>Veeranam → 0 MCF.</b> GW at 127.5% of recharge. Rivers still India's most polluted.</div></div>
+    </div>
+
+  </div><!-- /left -->
+
+  <!-- MAP -->
+  <div id="mapbox">
+    <button id="helpbtn" title="How to use this map" onclick="toggleHelp()">?</button>
+    <div id="help">
+      <b>How to use this map</b>
+      <div class="hrow"><span class="hk">Click river</span><span>See pollution data & coordinates</span></div>
+      <div class="hrow"><span class="hk">Click marker</span><span>See chokepoint details</span></div>
+      <div class="hrow"><span class="hk">Scroll wheel</span><span>Zoom in / out</span></div>
+      <div class="hrow"><span class="hk">Click + drag</span><span>Pan the map</span></div>
+      <div class="hrow"><span class="hk">+ / − buttons</span><span>Zoom controls (bottom right)</span></div>
+      <div class="hrow"><span class="hk">River buttons</span><span>Left panel → fly to that river</span></div>
+      <div class="hrow"><span class="hk">⬇ Export PDF</span><span>Print → Save as PDF</span></div>
+      <div class="hrow"><span class="hk">⟲ Reset</span><span>Return to full city view</span></div>
+      <div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--bdr);font-size:8px">
+        To share: send the .html file — opens in any browser without internet after first load (tiles cache locally).
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT PANEL -->
+  <div id="right">
+
+    <div class="ps">
+      <div class="plbl">Critical Chokepoints — Click marker on map</div>
+      <div class="cr"><div class="ci">⚠️</div><div>
+        <div class="cn">Marina Beach — Cooum Mouth</div>
+        <div class="cd">13.0610°N 80.2990°E · Seasonal sandbar 200–400m wide. 1m drop / 20km = stagnation. Tidal backwash blocks 6–8h/tide. Needs tidal gate.</div>
+      </div></div>
+      <div class="cr"><div class="ci">⚠️</div><div>
+        <div class="cn">Adyar Estuary</div>
+        <div class="cd">13.0012°N 80.2990°E · 2015: 348mm, 400+ deaths. Sandbar + seawater intrusion 3–5km inland. Chembarambakkam gate discharges trigger flash floods.</div>
+      </div></div>
+      <div class="cr"><div class="ci">🏭</div><div>
+        <div class="cn">Ennore Creek / Kosasthalaiyar Mouth</div>
+        <div class="cd">13.2312°N 80.3225°E · Ocean discharge mouth. 200–250 MLD industrial wastewater from Ennore zone. Only 40–50% treatment compliance. Heavy metals Cr, Ni, Cd.</div>
+      </div></div>
+      <div class="cr"><div class="ci">🚧</div><div>
+        <div class="cn">Buckingham ⊥ Cooum Junction</div>
+        <div class="cd">13.0725°N 80.2832°E · 60% of untreated sewage. 400–700 informal outfalls. 5,000+ encroachments. HC 2022 order unmet.</div>
+      </div></div>
+      <div class="cr"><div class="ci">💧</div><div>
+        <div class="cn">Chembarambakkam Lake Outlet</div>
+        <div class="cd">13.0075°N 80.0125°E · Primary Reservoir Spillway Gates. 3.65 TMC Capacity / 2.59 TMC Storage. Gate releases cause Adyar flooding.</div>
+      </div></div>
+      <div class="cr"><div class="ci">🏘️</div><div>
+        <div class="cn">Cooum Hutment Belt</div>
+        <div class="cd">13.0688°N 80.2450°E · 3,500+ illegal structures. Prevents dredging. Narrows channel 15–25%. 8–12 MLD direct discharge. 87-yr clearance at current pace.</div>
+      </div></div>
+      <div class="cr" style="background:rgba(168,85,247,.06);border-color:rgba(168,85,247,.25)">
+        <div class="ci">🔴</div><div>
+        <div class="cn" style="display:flex;align-items:center;gap:6px">
+          Southern Canal Squeeze (Thiruvanmiyur–Palavakkam)
+          <span style="font-size:7px;font-weight:700;text-transform:uppercase;
+            letter-spacing:.5px;padding:1px 5px;border-radius:3px;
+            background:rgba(168,85,247,.2);color:#c084fc;
+            border:1px solid rgba(168,85,247,.35);white-space:nowrap">CHOKED / RISK ZONE</span>
+        </div>
+        <div class="cd">12.9550°N 80.2550°E · 5.5 km critical urban squeeze. Bed capacity reduced >65% by siltation. Tidal lockages, raw domestic sewage outfalls choke flow velocity. Monsoon backwater flooding risk across ECR-OMR corridors.</div>
+      </div></div>
+    </div>
+
+    <div class="ps">
+      <div class="plbl">Proposed 60-Month Transformation</div>
+      <div class="phi"><div class="phd" style="background:#3b82f6"></div><div>
+        <div class="pht" style="color:#60a5fa">Phase 1 — Emergency Hydrology (1–12 mo)</div>
+        <div class="phx">Desiltation · Sandbar dredging · SWD completion · Tidal gate design<br/>₹450 Cr · KPI: 0% sandbar, +35% discharge capacity</div>
+      </div></div>
+      <div class="phi"><div class="phd" style="background:#22c55e"></div><div>
+        <div class="pht" style="color:#4ade80">Phase 2 — Pollution Control (12–36 mo)</div>
+        <div class="phx">MBR/MBBR units · Interceptor sewers · Wetlands · Aeration<br/>₹700 Cr · KPI: DO &gt;4 mg/L, BOD &lt;20 mg/L</div>
+      </div></div>
+      <div class="phi"><div class="phd" style="background:#f97316"></div><div>
+        <div class="pht" style="color:#fb923c">Phase 3 — Buffer Zone & Spatial (24–48 mo)</div>
+        <div class="phx">Protected Blue Line · TDR · Resettlement · Bioswales · Cisterns<br/>₹1,750 Cr · KPI: Blue Line 100%, 2.5M m³ cistern storage</div>
+      </div></div>
+      <div class="phi"><div class="phd" style="background:#a855f7"></div><div>
+        <div class="pht" style="color:#c084fc">Phase 4 — Digital Integration (36–60+ mo)</div>
+        <div class="phx">500+ IoT sensors · Digital Twin · Smart tidal gates · PPP water recycling<br/>₹1,000 Cr · KPI: Zero flood at 150mm/day</div>
+      </div></div>
+    </div>
+
+    <div class="ps">
+      <div class="plbl">Investment Return Analysis</div>
+      <div class="roi">
+        <div class="rh">440–690%</div>
+        <div class="rs">Return on investment over 10 years post-transformation</div>
+      </div>
+      <div style="margin-top:10px">
+        <div class="sr"><span class="sk">Transformation cost</span><span class="sv b">₹6,000–8,000 Cr</span></div>
+        <div class="sr"><span class="sk">Annual cost of inaction</span><span class="sv r">₹4,300–6,600 Cr</span></div>
+        <div class="sr"><span class="sk">Payback period</span><span class="sv g">13–18 months</span></div>
+        <div class="sr"><span class="sk">Net 10-year benefit</span><span class="sv g">₹35,000–55,000 Cr</span></div>
+      </div>
+    </div>
+
+    <div class="ps">
+      <div class="plbl">Reservoir System Status (Apr 2024)</div>
+      <div class="sr"><span class="sk">Poondi</span><span class="sv r">3.23 TMC Cap · 2.60 TMC Stor · 20% fill</span></div>
+      <div class="sr"><span class="sk">Chembarambakkam</span><span class="sv r">3.65 TMC Cap · 2.59 TMC Stor · 24% fill</span></div>
+      <div class="sr"><span class="sk">Red Hills</span><span class="sv o">3.30 TMC Cap · 2.16 TMC Stor · 32% fill</span></div>
+      <div class="sr"><span class="sk">Cholavaram</span><span class="sv r">1.08 TMC Cap · 0.71 TMC Stor · 19% fill</span></div>
+      <div class="sr"><span class="sk">Veeranam Lake</span><span class="sv r">1.46 TMC Cap · 0.21 TMC Stor — CRITICAL</span></div>
+      <div class="sr"><span class="sk">System average</span><span class="sv r">22% of capacity</span></div>
+    </div>
+
+    <div class="ps">
+      <div class="plbl">How to Share This Map</div>
+      <div style="font-size:8.5px;color:var(--mu);line-height:1.7">
+        <div style="margin-bottom:6px;color:var(--tx);font-weight:600">Share as a file (recommended)</div>
+        Send the <span style="color:var(--acc);font-family:var(--mono)">Chennai_Waterways_Map_v2.html</span> file directly via email or WhatsApp. Recipients open it by double-clicking — works in Chrome, Firefox, Edge, Safari. No internet required after first tile load.
+        <div style="margin-top:8px;margin-bottom:6px;color:var(--tx);font-weight:600">Share as PDF for print</div>
+        Click <span style="color:var(--acc)">⬇ Export PDF</span> → browser Print dialog opens → change Destination to "Save as PDF" → A3 or A4 size → Save. Panels are hidden in print; map fills the page.
+        <div style="margin-top:8px;margin-bottom:6px;color:var(--tx);font-weight:600">Host as a live link</div>
+        Upload the .html file to any web host (GitHub Pages, Netlify, Google Drive public link). Share the URL — stakeholders click and it opens instantly.
+      </div>
+    </div>
+
+
+    <div class="ps">
+      <div class="plbl">Document Attribution</div>
+      <div style="font-size:8.5px;color:var(--mu);line-height:1.75">
+
+        <div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:10px;
+          padding:9px;border-radius:7px;background:rgba(96,165,250,0.06);
+          border:1px solid rgba(96,165,250,0.2)">
+          <div style="font-size:14px;flex-shrink:0">⚡</div>
+          <div>
+            <div style="font-size:9.5px;font-weight:700;color:var(--acc);margin-bottom:3px">
+              100% Vibe-Coded via Anthropic Claude Pro
+            </div>
+            <div>This entire report — all analysis, visualisations, this interactive map,
+            and the transformation blueprint — was created through AI-assisted research
+            using <span style="color:var(--acc);font-weight:600">claude.ai</span>.
+            No consulting firm, GIS agency, or dev team was engaged.</div>
+          </div>
+        </div>
+
+        <div style="display:flex;align-items:flex-start;gap:8px;
+          padding:9px;border-radius:7px;background:rgba(34,197,94,0.05);
+          border:1px solid rgba(34,197,94,0.18)">
+          <div style="font-size:14px;flex-shrink:0">🌐</div>
+          <div>
+            <div style="font-size:9.5px;font-weight:700;color:#4ade80;margin-bottom:3px">
+              100% Open Source — No Proprietary Tools
+            </div>
+            <div>
+              <span style="color:var(--tx);font-weight:600">Map:</span>
+              Leaflet.js (BSD) + OpenStreetMap (ODbL)<br/>
+              <span style="color:var(--tx);font-weight:600">Charts:</span>
+              Python matplotlib / seaborn (BSD/MIT)<br/>
+              <span style="color:var(--tx);font-weight:600">Data:</span>
+              CPCB · TNPCB · CMWSSB · GCC · PWD · WRD<br/>
+              <span style="color:var(--tx);font-weight:600">All government publications — fully public</span>
+            </div>
+          </div>
+        </div>
+
+        <div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--bdr);
+          font-size:7.5px;color:var(--fa)">
+          Data current to May 2026 · CPCB Nov 2025 confirmed · PWD ₹2,388 Cr
+          Buckingham proposal included
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /right -->
+</div><!-- /layout -->
+
+<!-- FOOTER -->
+<div id="ftr">
+  <span id="coords">Hover over the map to see coordinates</span>
+  <span id="fcen">Data: CPCB Nov 2025 · TNPCB · CMWSSB · GCC · PWD · OpenStreetMap · 100% Open Source · ⚡ Claude Pro</span>
+  <span id="fzoom">Zoom: 11</span>
+</div>
+
+<!-- ③ LEAFLET JS — loaded LAST, before our init script -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<!-- ④ OUR SCRIPT — runs after Leaflet is fully available -->
+<script>
+/* ──────────────────────────────────────────
+   HELPERS
+────────────────────────────────────────── */
+function toggleHelp(){
+  var h=document.getElementById('help');
+  h.style.display=(h.style.display==='block'?'none':'block');
+}
+document.addEventListener('click',function(e){
+  var h=document.getElementById('help');
+  var b=document.getElementById('helpbtn');
+  if(h.style.display==='block' && !h.contains(e.target) && e.target!==b){
+    h.style.display='none';
+  }
+});
+
+/* popup HTML builder */
+function pu(icon,title,sub,rows,badge,bc){
+  var rs=rows.map(function(r){
+    return '<div class="pu-row"><span class="pu-k">'+r[0]+'</span>'
+      +'<span class="pu-v '+(r[2]||'')+'">'+r[1]+'</span></div>';
+  }).join('');
+  return '<div class="pu">'
+    +'<div class="pu-hd"><div class="pu-ic">'+icon+'</div>'
+    +'<div><div class="pu-ti">'+title+'</div><div class="pu-su">'+sub+'</div></div></div>'
+    +'<div class="pu-bd">'+rs+'</div>'
+    +(badge?'<div class="pu-bg '+bc+'">'+badge+'</div>':'')
+    +'</div>';
+}
+
+/* icon helpers */
+function pulseIcon(cls){
+  return L.divIcon({className:'',
+    html:'<div class="pd '+cls+'"></div>',
+    iconSize:[12,12],iconAnchor:[6,6],popupAnchor:[1,-8]});
+}
+function emojiIcon(em,bg,bdr){
+  return L.divIcon({className:'',
+    html:'<div style="width:24px;height:24px;border-radius:50%;background:'+bg+';'
+      +'border:2px solid '+bdr+';display:flex;align-items:center;'
+      +'justify-content:center;font-size:12px;">'+em+'</div>',
+    iconSize:[24,24],iconAnchor:[12,12],popupAnchor:[1,-14]});
+}
+
+/* ──────────────────────────────────────────
+   MAP INIT
+────────────────────────────────────────── */
+window.map=L.map('mapbox',{
+  center:[13.06,80.18],zoom:11,
+  zoomControl:false,attributionControl:true,
+  preferCanvas:false   /* SVG renderer = reliable click hit-detection */
+});
+
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+  attribution:'© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+  maxZoom:19,subdomains:'abc'
+}).addTo(map);
+
+L.control.zoom({position:'bottomright'}).addTo(map);
+
+/* live footer */
+window.map.on('mousemove',function(e){
+  document.getElementById('coords').textContent=
+    e.latlng.lat.toFixed(5)+'°N  '+e.latlng.lng.toFixed(5)+'°E';
+});
+window.map.on('zoomend',function(){
+  document.getElementById('fzoom').textContent='Zoom: '+window.map.getZoom();
+});
+
+function flyTo(lat,lng,z){if(window.map){window.map.flyTo([lat,lng],z,{duration:1.2})}}
+function resetMap(){if(window.map){window.map.flyTo([13.06,80.18],11,{duration:1.2})}}
+
+/* ──────────────────────────────────────────
+   RIVER POLYLINES
+   key fix: use L.polyline with clickable:true
+   and bind popup with openPopup on click
+────────────────────────────────────────── */
+
+/* COOUM — West→East */
+var cooumPts=[
+  [13.0210, 79.7616], // Origin: Kesavaram Anicut
+  [13.0710, 79.8594], // Pinjivakkam CheckDam
+  [13.1110, 80.0620], // Sriperumbudur highway tracking border
+  [13.0945, 80.1150], // Poonamallee bypass approach
+  [13.0825, 80.1480], // Koyambedu reach / Maduravoyal layout
+  [13.0780, 80.1720], // Arumbakkam / MMDA Colony limits
+  [13.0762, 80.2010], // Aminjikarai / Choolaimedu high-density stretch
+  [13.0735, 80.2240], // Chetpet / Spurtank Road bend
+  [13.0695, 80.2450], // Egmore (Behind Egmore Railway Station)
+  [13.0682, 80.2610], // Chintadripet loops
+  [13.0725, 80.2832], // ⊥ Buckingham Canal intersection at Central Station
+  [13.0655, 80.2910], // Passing Napier Bridge alignment
+  [13.0610, 80.2990]  // TRUE COOUM TERMINUS — Marina Beach Estuary mouth ✓
+];
+var cooumLine=L.polyline(cooumPts,{
+  color:'#ef4444',weight:6,opacity:0.92,
+  lineJoin:'round',lineCap:'round',smoothFactor:1,
+  interactive:true   /* ensures clicks register */
+}).addTo(map);
+cooumLine.bindPopup(
+  pu('🔴','Cooum River — Central Spine',
+    'Origin: 13.0210°N, 79.7616°E →  Mouth: 13.0610°N 80.2990°E',
+    [['Total length','72 km (32 km in city)','b'],
+     ['BOD level','345 mg/L  (115× standard)','r'],
+     ['Dissolved O₂','~0 mg/L — ANOXIC','r'],
+     ['Sewage outfalls','127 identified · 85 active','r'],
+     ['Daily sewage gap','21.67 MLD untreated','o'],
+     ['Hutments on banks','3,500+ (prevents dredging)','o'],
+     ['Gradient (last 20km)','1m drop — near-zero velocity','o'],
+     ['CPCB 2024 ranking','Most polluted river in India','r']],
+    'ECOSYSTEM DEATH — RESTORATION CRITICAL','r'),
+  {maxWidth:300,autoPanPadding:[20,20]}
+);
+
+/* ADYAR — West→East */
+var adyarPts=[
+  [13.0075, 80.0125], // Origin: Chembarambakkam Lake Main Flood Gates ✓
+  [13.0135, 80.0450], // Outer Ring Road / Thirumudivakkam border
+  [13.0160, 80.0820], // Ramapuram / Chennai bypass bridge intersection
+  [13.0205, 80.1210], // Nandambakkam / Chennai Trade Centre curve
+  [13.0215, 80.1490], // Jafferkhanpet (Kasi Bridge intersection)
+  [13.0225, 80.1750], // Saidapet Maraimalai Adigal Bridge (True location)
+  [13.0165, 80.2110], // Turn past Anna University / Kotturpuram baseline
+  [13.0132, 80.2340], // Kotturpuram Bridge curve
+  [13.0108, 80.2580], // Turning past the Thiru Vi Ka Bridge / Adyar signal
+  [13.0078, 80.2785], // ⊥ Buckingham Canal crossing alignment
+  [13.0042, 80.2910], // Bordering Chettinad Palace grounds
+  [13.0012, 80.2990]  // TRUE ADYAR ESTUARY MOUTH — Terminus at the sea break ✓
+];
+var adyarLine=L.polyline(adyarPts,{
+  color:'#f97316',weight:6,opacity:0.92,
+  lineJoin:'round',lineCap:'round',smoothFactor:1,interactive:true
+}).addTo(map);
+adyarLine.bindPopup(
+  pu('🟠','Adyar River — Southern Drain',
+    'Origin: 13.0075°N 80.0125°E (Chembarambakkam Spillway) → Adyar Estuary: 13.0012°N 80.2990°E',
+    [['Total length','42 km','b'],
+     ['BOD level','40 mg/L  (13× standard)','o'],
+     ['Dissolved O₂','~0 mg/L — ANOXIC','r'],
+     ['Sewage outfalls','67 identified (active)','o'],
+     ['2015 flood event','348 mm/24h — 400+ deaths','r'],
+     ['Flood trigger','Chembarambakkam gate discharge','o'],
+     ['Sandbar blockage','Annual — prevents monsoon discharge','o']],
+    'DEAD RIVER — PRIMARY 2015 FLOOD SOURCE','o'),
+  {maxWidth:300,autoPanPadding:[20,20]}
+);
+
+/* KOSASTHALAIYAR — NW → NE */
+var kosaPts=[
+  [13.3374, 79.4332], // Pallipattu TN Entry from AndhraPradhesh (Krishnapuram Reservoir)
+  [13.1711, 79.8228], // Poondi Reservoir Entry
+  [13.2102, 79.8714], // Origin: Poondi Reservoir Main Regulator Gates
+  [13.2442, 80.0474], // Sethupakkam
+  [13.2559, 80.1579], // Karanodai
+  [13.2621, 80.2530], //Seemapuram Check Dam
+  [13.2195, 80.2640], // Sadayankuppam bridge checkpoint
+  [13.2240, 80.2850], // Entering the wide Ennore Creek wetlands
+  [13.2327, 80.3314]  // TRUE KOSASTHALAIYAR TERMINUS — Ocean discharge at Ennore Creek mouth ✓
+];
+var kosaLine=L.polyline(kosaPts,{
+  color:'#22c55e',weight:7,opacity:0.90,
+  lineJoin:'round',lineCap:'round',smoothFactor:1,interactive:true
+}).addTo(map);
+kosaLine.bindPopup(
+  pu('🟢','Kosasthalaiyar River — Northern Giant',
+    'Origin: 13.2102°N 79.8714°E  →  Ennore: 13.2327°N 80.3314°E',
+    [['Total length','136 km · Largest volume river','b'],
+     ['Origin','Andhra Pradesh hills','b'],
+     ['Key reservoir','Poondi (20% fill, Apr 2024)','o'],
+     ['Mouth','Ennore Creek, Bay of Bengal','b'],
+     ['Industrial zone','Ennore — 200–250 MLD discharge','o'],
+     ['Treatment compliance','40–50% industries only','o'],
+     ['Current status','Less polluted — actively declining','o']],
+    'DECLINING — UNDER INDUSTRIAL PRESSURE','g'),
+  {maxWidth:300,autoPanPadding:[20,20]}
+);
+
+/* BUCKINGHAM CANAL — North→South (dashed) */
+var buckPts=[
+  [13.2352,80.3040], // Northern terminus near Ennore
+  [13.2185,80.2992],
+  [13.2018,80.2958],
+  [13.1845,80.2935], // near Kosasthalaiyar junction
+  [13.1672,80.2918],
+  [13.1498,80.2902],
+  [13.1325,80.2882],
+  [13.1152,80.2865],
+  [13.0978,80.2852],
+  [13.0805,80.2842],
+  [13.0725,80.2832], // Buckingham x Cooum junction
+  [13.0552,80.2815],
+  [13.0378,80.2800],
+  [13.0205,80.2785],
+  [13.0068,80.2775], // Buckingham x Adyar junction - CORRECTED
+  [12.9800,80.2750],
+  [12.9550,80.2730],
+  [12.9300,80.2650]  // Southern terminus Thiruvanmiyur/Palavakkam
+];
+var buckLine=L.polyline(buckPts,{
+  color:'#a855f7',weight:4,opacity:0.88,
+  dashArray:'12 7',lineJoin:'round',lineCap:'round',
+  smoothFactor:1,interactive:true
+}).addTo(map);
+buckLine.bindPopup(
+  pu('🟣','Buckingham Canal — N–S Interceptor',
+    'Northern (13.235°N)  →  Southern terminus — Perpendicular to all rivers',
+    [['Total length','796 km (British era navigation canal)','b'],
+     ['Through Chennai','70–100 km N→S','b'],
+     ['Current sewage load','60% of city untreated surplus','r'],
+     ['Illegal outfalls','400–700+ informal','r'],
+     ['Encroachments','5,000+ · 170 km encroached','r'],
+     ['HC order 2022','Restoration mandated — deadline unmet','o'],
+     ['MRTS damage','25 SWD stretches destroyed by CMRL','o']],
+    'CHOKED — NOW ACTS AS BARRIER, NOT BUFFER','p'),
+  {maxWidth:300,autoPanPadding:[20,20]}
+);
+
+/* ──────────────────────────────────────────
+   POLLUTION HOTSPOT ZONES (circles)
+────────────────────────────────────────── */
+L.circle([13.068,80.265],{
+  radius:2800,color:'#ef4444',fillColor:'#ef4444',
+  fillOpacity:0.09,weight:1.5,opacity:0.4,dashArray:'6 4',interactive:true
+}).addTo(map).bindPopup(
+  pu('☣️','Pollution Hotspot — Cooum Central (8 km stretch)',
+    'Most contaminated river section in India',
+    [['BOD','345 mg/L  (safe: 3 mg/L)','r'],
+     ['Dissolved O₂','Zero — no aquatic life','r'],
+     ['Active outfalls here','40+ concentrated','r'],
+     ['Hutments blocking access','3,500+','o']],
+    'ECOSYSTEM DEATH ZONE','r'),
+  {maxWidth:280}
+);
+
+/* Southern Buckingham Squeeze Danger Zone */
+L.circle([12.9600,80.2600],{
+  radius:1500,color:'#ef4444',fillColor:'#ef4444',
+  fillOpacity:0.12,weight:2,opacity:0.60,dashArray:'8 4',interactive:true
+}).addTo(map).bindPopup(
+  pu('🔴','Southern Canal Danger Zone — Thiruvanmiyur–Palavakkam',
+    '12.9600°N, 80.2600°E · 5.5 km Critical Squeeze Sector',
+    [['Siltation level','Bed capacity reduced >65%','r'],
+     ['Tidal lockage','Coastal backwater blocks flow daily','r'],
+     ['Sewage outfalls','Raw domestic discharge — peak density','r'],
+     ['ECR-OMR flood risk','Residential corridors severely exposed','r'],
+     ['Dredging status','Urgent — canal near-zero velocity','r']],
+    'CHOKED / RISK ZONE — MONSOON CRITICAL','r'),
+  {maxWidth:295}
+);
+
+L.circle([13.017,80.217],{
+  radius:2100,color:'#f97316',fillColor:'#f97316',
+  fillOpacity:0.07,weight:1.5,opacity:0.35,dashArray:'6 4',interactive:true
+}).addTo(map).bindPopup(
+  pu('🟠','Pollution Hotspot — Adyar City Stretch',
+    'Highly polluted 6–8 km urban section · Saidapet → Thiru Vi Ka Bridge',
+    [['BOD','40 mg/L  (safe: 3 mg/L)','o'],
+     ['Dissolved O₂','~0 mg/L','r'],
+     ['Active outfalls','60+','o'],
+     ['Flood mortality risk','Highest in city','r']],
+    'HIGHLY POLLUTED — FLOOD SOURCE','o'),
+  {maxWidth:280}
+);
+
+/* ──────────────────────────────────────────
+   MARKERS
+────────────────────────────────────────── */
+/* Marina Beach — Cooum mouth */
+L.marker([13.0610,80.2990],{icon:pulseIcon('red')}).addTo(map).bindPopup(
+  pu('⚠️','CHOKEPOINT: Marina Beach — Cooum Mouth',
+    '13.0610°N, 80.2990°E',
+    [['Sandbar size','200–400m wide · 1.5–2.5m high','r'],
+     ['Gradient','1m drop / 20km — near-zero velocity','r'],
+     ['Tidal backwash','Blocks discharge 6–8h per tide','r'],
+     ['Upstream effect','Flood trapped 5–8km inland','r'],
+     ['Emergency dredging cost','₹20–30 Cr/event — temporary','o'],
+     ['Permanent solution needed','Smart tidal gate (unbuilt)','b']],
+    'CRITICAL — BLOCKS ALL MONSOON DISCHARGE','r'),{maxWidth:290}
+);
+
+/* Adyar Estuary */
+L.marker([13.0012,80.2990],{icon:pulseIcon('ora')}).addTo(map).bindPopup(
+  pu('⚠️','CHOKEPOINT: Adyar Estuary',
+    '13.0012°N, 80.2990°E',
+    [['2015 rainfall','348 mm/24h → 400+ deaths','r'],
+     ['2023 Michaung','500–600 mm/24h → 17 deaths','o'],
+     ['Sandbar blockage','Annual — prevents discharge','r'],
+     ['Seawater intrusion','3–5 km inland during surge','o'],
+     ['Primary trigger','Chembarambakkam gate release','o']],
+    'HIGHEST FLOOD MORTALITY RISK IN CITY','r'),{maxWidth:290}
+);
+
+/* Buckingham × Cooum */
+L.marker([13.0725,80.2832],{icon:pulseIcon('pur')}).addTo(map).bindPopup(
+  pu('🚧','CHOKEPOINT: Buckingham Canal ⊥ Cooum Junction',
+    '13.0725°N, 80.2832°E · Near Chennai Central / Wallajah Road alignment',
+    [['Sewage load','60% of city untreated surplus','r'],
+     ['Informal outfalls','400–700+ at this junction','r'],
+     ['Canal encroachments','5,000+ blocking restoration','r'],
+     ['HC order 2022','Mandate issued — deadline unmet','o'],
+     ['MRTS damage','SWD destroyed at this section','o']],
+    'CANAL CHOKED AT CRITICAL JUNCTION','p'),{maxWidth:290}
+);
+
+/* Buckingham × Kosasthalaiyar */
+L.marker([13.1720,80.2920],{icon:emojiIcon('⊥','rgba(168,85,247,0.15)','#a855f7')})
+  .addTo(map).bindPopup(
+  pu('⊥','Buckingham Canal ⊥ Kosasthalaiyar Junction',
+    '13.1720°N, 80.2920°E',
+    [['Design purpose','North flood bypass — distribute peak discharge','b'],
+     ['Current status','Intersection partially choked','o'],
+     ['Functional?','Non-operational as flood buffer','r']],
+    'N–S INTERSECTION DEGRADED','p'),{maxWidth:280}
+);
+
+/* Buckingham × Adyar */
+L.marker([13.0078,80.2785],{icon:emojiIcon('⊥','rgba(168,85,247,0.15)','#a855f7')})
+  .addTo(map).bindPopup(
+  pu('⊥','Buckingham Canal ⊥ Adyar Junction',
+    '13.0078°N, 80.2785°E · Near Thiru Vi Ka Bridge / Adyar alignment',
+    [['Design purpose','Southern tidal exchange — flood distribution','b'],
+     ['Current status','Choked — tidal exchange blocked','r'],
+     ['Impact','Adyar flood peak cannot bypass to canal','r']],
+    'S–W INTERSECTION DEGRADED','p'),{maxWidth:280}
+);
+
+/* Chembarambakkam */
+L.marker([13.0075,80.0125],{icon:emojiIcon('💧','rgba(59,130,246,0.15)','#3b82f6')})
+  .addTo(map).bindPopup(
+  pu('💧','Chembarambakkam Lake Outlet — Adyar Source',
+    '13.0075°N, 80.0125°E · Primary Reservoir Spillway Gates',
+    [['Capacity','3.65 TMC','b'],
+     ['Design Storage','2.59 TMC','b'],
+     ['Level Apr 2024','0.89 TMC (24% fill)','r'],
+     ['Year-on-year loss','−1,210 MCF in a single year','r'],
+     ['Flood risk','Gate discharges cause Adyar flash floods','r']],
+    'PRIMARY ADYAR FLOOD TRIGGER','b'),{maxWidth:290}
+);
+
+/* Poondi Reservoir */
+L.marker([13.2122, 79.9015],{icon:emojiIcon('💧','rgba(59,130,246,0.15)','#3b82f6')})
+  .addTo(map).bindPopup(
+  pu('💧','Poondi Reservoir Regulator — Kosasthalaiyar Source',
+    '13.2122°N, 79.9015°E · Main Release Gates · Tiruvallur District',
+    [['Capacity','3.23 TMC','b'],
+     ['Design Storage','2.60 TMC','b'],
+     ['Level Apr 2024','0.64 TMC (20% fill)','r'],
+     ['Year-on-year loss','−505 MCF in a single year','r'],
+     ['Role','Primary north Chennai water source','b']],
+    'CRITICAL LOW — PRIMARY NORTH WATER SOURCE','b'),{maxWidth:290}
+);
+
+/* Cooum origin */
+L.marker([13.0210,79.7616],{icon:emojiIcon('●','rgba(239,68,68,0.1)','#ef4444')})
+  .addTo(map).bindPopup(
+  pu('●','Cooum River — Origin Point',
+    '13.0210°N, 79.7616°E · Tiruvallur District',
+    [['Feature','Kesavaram Anicut','b'],
+     ['Distance to sea','72 km downstream','b'],
+     ['Elevation','~50m above sea level','b'],
+     ['Average gradient','0.69 m/km to mouth','o']],
+    'COOUM ORIGIN','r'),{maxWidth:270}
+);
+
+/* Hutment belt */
+L.marker([13.0688,80.2450],{icon:emojiIcon('🏘','rgba(239,68,68,0.12)','#ef4444')})
+  .addTo(map).bindPopup(
+  pu('🏘','Hutment Belt — Cooum Central',
+    '13.0688°N, 80.2450°E · Most encroached stretch',
+    [['Illegal hutments','3,500+ on both banks','r'],
+     ['Channel narrowing','15–25% below designed width','r'],
+     ['Direct sewage discharge','~8–12 MLD to river','r'],
+     ['Dredging possible?','No — hutments block access','r'],
+     ['Resettlement pace','30–40 families/yr = 87+ yr clearance','o']],
+    'BLOCKS DREDGING & RESTORATION','r'),{maxWidth:290}
+);
+
+/* Southern Buckingham Canal Bottleneck — pulsing chokepoint marker */
+L.marker([12.9550,80.2550],{icon:pulseIcon('pur')}).addTo(map).bindPopup(
+  pu('⚠️','CHOKEPOINT: Southern Canal Bottleneck (Thiruvanmiyur–Palavakkam)',
+    '12.9550°N, 80.2550°E · Kottivakkam-Palavakkam Canal Axis',
+    [['Sector length','Critical 5.5 km rapid urban squeeze','r'],
+     ['Siltation','Bed capacity reduced by over 65%','r'],
+     ['Tidal lockage','Coastal backwater blocks flow velocity','r'],
+     ['Sewage outfalls','Raw domestic discharge — peak density zone','r'],
+     ['Flood impact','ECR-OMR residential corridors — backwater risk','r'],
+     ['Bank encroachments','Both banks compromised — dredging blocked','o']],
+    'CHOKED / RISK ZONE — MONSOON CRITICAL','p'),{maxWidth:315}
+);
+
+/* Buckingham Canal — Southern Terminus (aligned to buckPts last node) */
+L.marker([12.9300,80.2650],{icon:emojiIcon('🔚','rgba(168,85,247,0.12)','#a855f7')})
+  .addTo(map).bindPopup(
+  pu('🔚','Buckingham Canal — Southern Terminus · Palavakkam Boundary',
+    '12.9300°N, 80.2650°E · Final node — Thiruvanmiyur/Palavakkam',
+    [['Canal status','Effectively blocked — no coastal outflow','r'],
+     ['N→S span through city','~33 km from Ennore terminus','b'],
+     ['Tidal exchange','Zero — structurally silted shut','r'],
+     ['Restoration priority','Urgent desiltation — Phase 1 scope','o']],
+    'SOUTHERN TERMINAL — CANAL DEAD ZONE','p'),{maxWidth:290}
+);
+
+/* Ennore Creek / Kosasthalaiyar Mouth */
+L.marker([13.2312,80.3225],{icon:emojiIcon('🏭','rgba(249,115,22,0.15)','#f97316')})
+  .addTo(map).bindPopup(
+  pu('🏭','Ennore Creek / Kosasthalaiyar Mouth — Industrial Zone',
+    '13.2312°N, 80.3225°E · Anchored at Ennore Ocean Mouth',
+    [['Industrial wastewater','200–250 MLD daily','r'],
+     ['Treatment compliance','40–50% of industries only','o'],
+     ['Key pollutants','Cr, Ni, Cd · thermal · petrochemical','r'],
+     ['Monitoring body','TNPCB (150+ industries)','b']],
+    'SEVERE INDUSTRIAL CONTAMINATION ZONE','o'),{maxWidth:290}
+);
+
+/* ──────────────────────────────────────────
+   FLOW DIRECTION ARROWS
+────────────────────────────────────────── */
+function arrow(lat,lng,rot,col){
+  L.marker([lat,lng],{icon:L.divIcon({className:'',
+    html:'<div style="width:0;height:0;'
+      +'border-left:5px solid transparent;border-right:5px solid transparent;'
+      +'border-bottom:11px solid '+col+';opacity:.65;'
+      +'transform:rotate('+rot+'deg);"></div>',
+    iconSize:[10,11],iconAnchor:[5,5]}),interactive:false}).addTo(map);
+}
+/* Cooum W→E — midpoints of cooumPts segments, bearings recalculated */
+arrow(13.091,79.961, 79,'#ef4444');  /* pt[1]→pt[2] */
+arrow(13.089,80.132,110,'#ef4444');  /* pt[3]→pt[4] */
+arrow(13.075,80.213, 97,'#ef4444');  /* pt[6]→pt[7] */
+/* Adyar W→E — recalibrated to corrected adyarPts (lat ~13.01, NOT 12.96) */
+arrow(13.011,80.029, 80,'#f97316');  /* pt[0]→pt[1] */
+arrow(13.018,80.102, 83,'#f97316');  /* pt[2]→pt[3] */
+arrow(13.020,80.193,100,'#f97316');  /* pt[5]→pt[6] */
+/* Kosasthalaiyar — corrected bearings per kosaPts geometry */
+arrow(13.227,79.959, 79,'#22c55e');  /* pt[2]→pt[3] NE post-Poondi */
+arrow(13.250,80.103, 84,'#22c55e');  /* pt[3]→pt[4] east to Karanodai */
+arrow(13.241,80.259,166,'#22c55e');  /* pt[5]→pt[6] SSE turn at Seemapuram */
+/* Buckingham N→S — northern + mid city */
+arrow(13.190,80.293,180,'#a855f7');
+arrow(13.130,80.288,180,'#a855f7');
+arrow(13.090,80.284,180,'#a855f7');
+arrow(13.010,80.279,180,'#a855f7');
+/* Buckingham southern choked stretch — bearings from buckPts geometry */
+arrow(12.968,80.274,185,'#a855f7');  /* pt[15]→pt[16] SSW into squeeze zone */
+arrow(12.943,80.269,198,'#a855f7');  /* pt[16]→pt[17] SSW-W to Palavakkam terminus */
+
+/* ──────────────────────────────────────────
+   MAP LEGEND
+────────────────────────────────────────── */
+var leg=L.control({position:'bottomleft'});
+leg.onAdd=function(){
+  var d=L.DomUtil.create('div','mleg');
+  d.innerHTML='<h4>Waterway Legend</h4>'
+    +'<div class="lr"><div class="ll" style="background:#ef4444;height:4px"></div>'
+    +'<span class="lt">Cooum — DEAD (BOD 345 mg/L)</span></div>'
+    +'<div class="lr"><div class="ll" style="background:#f97316;height:4px"></div>'
+    +'<span class="lt">Adyar — DEAD (BOD 40 mg/L)</span></div>'
+    +'<div class="lr"><div class="ll" style="background:#22c55e;height:5px"></div>'
+    +'<span class="lt">Kosasthalaiyar — Declining</span></div>'
+    +'<div class="lr"><div class="ll da"></div>'
+    +'<span class="lt">Buckingham Canal — Choked (N→S)</span></div>'
+    +'<div class="ldiv"></div>'
+    +'<div class="lr"><div style="width:10px;height:10px;border-radius:50%;'
+    +'background:#ef4444;border:2px solid #fca5a5;flex-shrink:0"></div>'
+    +'<span class="lt">Critical chokepoint (pulsing)</span></div>'
+    +'<div class="lr"><div style="width:12px;height:12px;border-radius:50%;'
+    +'background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.3);flex-shrink:0"></div>'
+    +'<span class="lt">Pollution severity zone</span></div>'
+    +'<div class="lr"><div style="width:12px;height:12px;border-radius:50%;'
+    +'background:rgba(239,68,68,.12);border:2px solid rgba(239,68,68,.55);flex-shrink:0"></div>'
+    +'<span class="lt">Southern canal squeeze / danger zone</span></div>'
+    +'<div class="lr"><div style="width:14px;height:14px;border-radius:50%;'
+    +'background:rgba(59,130,246,.15);border:2px solid #3b82f6;flex-shrink:0;'
+    +'display:flex;align-items:center;justify-content:center;font-size:8px">💧</div>'
+    +'<span class="lt">Reservoir / water source</span></div>'
+    +'<div class="ldiv"></div>'
+    +'<div style="font-size:7.5px;color:var(--fa)">→ Arrows show flow direction · Click any element for data</div>';
+  L.DomEvent.disableClickPropagation(d);
+  L.DomEvent.disableScrollPropagation(d);
+  return d;
+};
+leg.addTo(map);
+
+</script>
+</body>
+</html>
